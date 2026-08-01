@@ -114,6 +114,9 @@
           <button class="tab-btn" data-tab="transport">
             <i class="fas fa-train mr-1.5"></i>交通資訊
           </button>
+          <button class="tab-btn" data-tab="hotels">
+            <i class="fas fa-hotel mr-1.5"></i>飯店資訊
+          </button>
         </div>
       </div>
 
@@ -350,6 +353,21 @@
             </div>
             <div id="timetableList" class="p-4 space-y-3 min-h-[120px]"></div>
           </div>
+        </div>
+      </div>
+
+      <!-- ========== TAB: 飯店資訊 ========== -->
+      <div id="tab-hotels" class="tab-content hidden">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="font-semibold text-slate-800">
+              <i class="fas fa-hotel mr-2 text-primary-500"></i>飯店資訊
+            </h3>
+            <button id="btnAddHotel" class="btn-primary text-sm py-1.5 px-3">
+              <i class="fas fa-plus mr-1.5"></i>新增飯店
+            </button>
+          </div>
+          <div id="hotelsList" class="p-4 space-y-3 min-h-[160px]"></div>
         </div>
       </div>
     </div>
@@ -662,6 +680,75 @@
         <div>
           <label class="label">備註</label>
           <textarea id="ttNotes" class="input" rows="2" placeholder="例如：查詢成田機場到東京車站"></textarea>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" class="btn-ghost" data-close>取消</button>
+          <button type="submit" class="btn-primary">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Hotel -->
+  <div id="hotelModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel max-w-lg">
+      <div class="modal-header">
+        <h3 id="hotelModalTitle" class="text-lg font-bold">新增飯店</h3>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <form id="hotelForm" class="modal-body space-y-4 max-h-[75vh] overflow-y-auto">
+        <div>
+          <label class="label">飯店名稱 *</label>
+          <input type="text" id="hotelName" class="input" placeholder="例如：新宿格蘭貝爾飯店" required />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">入住日期</label>
+            <input type="date" id="hotelCheckInDate" class="input" />
+          </div>
+          <div>
+            <label class="label">退房日期</label>
+            <input type="date" id="hotelCheckOutDate" class="input" />
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">Check-in 時間</label>
+            <input type="time" id="hotelCheckInTime" class="input" />
+          </div>
+          <div>
+            <label class="label">Check-out 時間</label>
+            <input type="time" id="hotelCheckOutTime" class="input" />
+          </div>
+        </div>
+        <div>
+          <label class="label">有無早餐</label>
+          <select id="hotelBreakfast" class="input">
+            <option value="unknown">未確認</option>
+            <option value="included">含早餐</option>
+            <option value="not_included">不含早餐</option>
+            <option value="optional">可加購</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">額外設施或服務</label>
+          <textarea id="hotelFacilities" class="input" rows="2" placeholder="例如：免費 Wi-Fi、洗衣服務、機場接送、健身房…"></textarea>
+        </div>
+        <div>
+          <label class="label">注意事項</label>
+          <textarea id="hotelNotes" class="input" rows="2" placeholder="例如：需提前寄放行李、宵禁時間、訂房編號…"></textarea>
+        </div>
+        <div>
+          <label class="label">訂房紀錄 PDF</label>
+          <input type="file" id="hotelPdf" class="input" accept="application/pdf,.pdf" />
+          <p class="text-xs text-slate-400 mt-1">僅支援 PDF，檔案大小上限 <strong>2 MB</strong>。超過會上傳失敗。</p>
+          <p id="hotelPdfError" class="text-xs text-red-500 mt-1 hidden"></p>
+          <div id="hotelPdfPreview" class="mt-2 hidden flex items-center gap-2 text-sm">
+            <i class="fas fa-file-pdf text-red-500"></i>
+            <span id="hotelPdfName" class="text-slate-700 truncate flex-1"></span>
+            <button type="button" id="btnClearHotelPdf" class="text-xs text-red-500">清除</button>
+          </div>
         </div>
         <div class="flex justify-end gap-3 pt-2">
           <button type="button" class="btn-ghost" data-close>取消</button>

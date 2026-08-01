@@ -19,8 +19,10 @@ let state = {
   editingShoppingId: null,
   editingRouteId: null,
   editingTimetableId: null,
+  editingHotelId: null,
   tempPhotoBase64: null,
   tempRoutePhotoBase64: null,
+  tempHotelPdf: null, // { name, data (base64) }
   map: null,
   markers: []
 };
@@ -155,6 +157,7 @@ function ensureTripData(trip) {
   if (!Array.isArray(trip.shoppingList)) trip.shoppingList = [];
   if (!Array.isArray(trip.routeMaps)) trip.routeMaps = [];
   if (!Array.isArray(trip.timetableLinks)) trip.timetableLinks = [];
+  if (!Array.isArray(trip.hotels)) trip.hotels = [];
   return trip;
 }
 
@@ -503,6 +506,64 @@ function deleteTimetableLink(id) {
   saveData();
 }
 
+// ========== Hotels ==========
+const MAX_PDF_SIZE = 2 * 1024 * 1024; // 2 MB
+
+function breakfastLabel(v) {
+  const map = {
+    unknown: '未確認',
+    included: '含早餐',
+    not_included: '不含早餐',
+    optional: '可加購'
+  };
+  return map[v] || '未確認';
+}
+
+function addHotel(data) {
+  const trip = getCurrentTrip();
+  if (!trip) return;
+  trip.hotels.push({
+    id: uid(),
+    name: data.name,
+    checkInDate: data.checkInDate || '',
+    checkOutDate: data.checkOutDate || '',
+    checkInTime: data.checkInTime || '',
+    checkOutTime: data.checkOutTime || '',
+    breakfast: data.breakfast || 'unknown',
+    facilities: data.facilities || '',
+    notes: data.notes || '',
+    pdf: data.pdf || null // { name, data }
+  });
+  // sort by check-in date
+  trip.hotels.sort((a, b) => (a.checkInDate || '9999').localeCompare(b.checkInDate || '9999'));
+  saveData();
+}
+
+function updateHotel(id, data) {
+  const trip = getCurrentTrip();
+  if (!trip) return;
+  const item = trip.hotels.find(i => i.id === id);
+  if (!item) return;
+  item.name = data.name;
+  item.checkInDate = data.checkInDate || '';
+  item.checkOutDate = data.checkOutDate || '';
+  item.checkInTime = data.checkInTime || '';
+  item.checkOutTime = data.checkOutTime || '';
+  item.breakfast = data.breakfast || 'unknown';
+  item.facilities = data.facilities || '';
+  item.notes = data.notes || '';
+  if (data.pdf !== undefined) item.pdf = data.pdf;
+  trip.hotels.sort((a, b) => (a.checkInDate || '9999').localeCompare(b.checkInDate || '9999'));
+  saveData();
+}
+
+function deleteHotel(id) {
+  const trip = getCurrentTrip();
+  if (!trip) return;
+  trip.hotels = trip.hotels.filter(i => i.id !== id);
+  saveData();
+}
+
 // ========== Map ==========
 function initMap() {
   if (state.map) return;
@@ -592,6 +653,7 @@ function renderTabContent() {
   else if (state.currentTab === 'expenses') renderExpenses(trip);
   else if (state.currentTab === 'shopping') renderShopping(trip);
   else if (state.currentTab === 'transport') renderTransport(trip);
+  else if (state.currentTab === 'hotels') renderHotels(trip);
 }
 
 // ========== Render helpers ==========
@@ -874,6 +936,63 @@ function renderTransport(trip) {
   }
 }
 
+function renderHotels(trip) {
+  const container = document.getElementById('hotelsList');
+  if (trip.hotels.length === 0) {
+    container.innerHTML = `
+      <div class="text-center py-12 text-slate-400">
+        <i class="fas fa-hotel text-3xl mb-3 opacity-50"></i>
+        <p>還沒有飯店資訊</p>
+        <p class="text-sm mt-1">可新增多家飯店並上傳訂房 PDF</p>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = trip.hotels.map(h => {
+    const period = [h.checkInDate, h.checkOutDate].filter(Boolean).map(formatDate).join(' ～ ');
+    const times = [];
+    if (h.checkInTime) times.push(`入住 ${h.checkInTime}`);
+    if (h.checkOutTime) times.push(`退房 ${h.checkOutTime}`);
+    return `
+      <details class="group border border-slate-200 rounded-xl overflow-hidden bg-white">
+        <summary class="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-slate-50 list-none">
+          <div class="min-w-0">
+            <div class="font-medium text-slate-800 truncate">${h.name}</div>
+            <div class="text-xs text-slate-500 mt-0.5">
+              ${period || '日期未填'}
+              ${times.length ? ' · ' + times.join(' / ') : ''}
+              · ${breakfastLabel(h.breakfast)}
+            </div>
+          </div>
+          <div class="flex items-center gap-1 flex-shrink-0 ml-2">
+            <button class="btn-ghost p-1.5 text-slate-400 hover:text-primary-600 edit-hotel" data-id="${h.id}" onclick="event.preventDefault();event.stopPropagation()"><i class="fas fa-pen text-xs"></i></button>
+            <button class="btn-ghost p-1.5 text-slate-400 hover:text-red-500 del-hotel" data-id="${h.id}" onclick="event.preventDefault();event.stopPropagation()"><i class="fas fa-trash-alt text-xs"></i></button>
+            <i class="fas fa-chevron-down text-slate-400 text-xs transition-transform group-open:rotate-180 ml-1"></i>
+          </div>
+        </summary>
+        <div class="px-4 pb-4 border-t border-slate-100 space-y-2 text-sm">
+          <div class="grid grid-cols-2 gap-2 mt-3">
+            <div><span class="text-slate-400">入住</span><br>${h.checkInDate ? formatDate(h.checkInDate) : '—'} ${h.checkInTime || ''}</div>
+            <div><span class="text-slate-400">退房</span><br>${h.checkOutDate ? formatDate(h.checkOutDate) : '—'} ${h.checkOutTime || ''}</div>
+          </div>
+          <div><span class="text-slate-400">早餐：</span>${breakfastLabel(h.breakfast)}</div>
+          ${h.facilities ? `<div><span class="text-slate-400">設施／服務：</span><span class="whitespace-pre-wrap">${h.facilities}</span></div>` : ''}
+          ${h.notes ? `<div><span class="text-slate-400">注意事項：</span><span class="whitespace-pre-wrap">${h.notes}</span></div>` : ''}
+          ${h.pdf ? `
+            <div class="flex items-center gap-2 pt-1">
+              <i class="fas fa-file-pdf text-red-500"></i>
+              <button type="button" class="text-primary-600 hover:underline download-hotel-pdf" data-id="${h.id}">
+                下載訂房 PDF（${h.pdf.name || 'booking.pdf'}）
+              </button>
+            </div>
+          ` : '<div class="text-slate-400">尚無訂房 PDF</div>'}
+        </div>
+      </details>
+    `;
+  }).join('');
+}
+
 function render() {
   const trip = getCurrentTrip();
   const empty = document.getElementById('emptyState');
@@ -929,6 +1048,7 @@ function closeAllModals() {
   document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
   state.tempPhotoBase64 = null;
   state.tempRoutePhotoBase64 = null;
+  state.tempHotelPdf = null;
 }
 
 // ========== Event Bindings ==========
@@ -1299,6 +1419,82 @@ function bindEvents() {
     render();
   });
 
+  // Hotels
+  document.getElementById('btnAddHotel').addEventListener('click', () => openHotelModal());
+  document.getElementById('hotelForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const data = {
+      name: document.getElementById('hotelName').value.trim(),
+      checkInDate: document.getElementById('hotelCheckInDate').value,
+      checkOutDate: document.getElementById('hotelCheckOutDate').value,
+      checkInTime: document.getElementById('hotelCheckInTime').value,
+      checkOutTime: document.getElementById('hotelCheckOutTime').value,
+      breakfast: document.getElementById('hotelBreakfast').value,
+      facilities: document.getElementById('hotelFacilities').value.trim(),
+      notes: document.getElementById('hotelNotes').value.trim(),
+      pdf: state.tempHotelPdf
+    };
+    if (!data.name) return;
+    if (state.editingHotelId) {
+      const trip = getCurrentTrip();
+      const existing = trip.hotels.find(i => i.id === state.editingHotelId);
+      if (state.tempHotelPdf === null && existing) data.pdf = existing.pdf;
+      updateHotel(state.editingHotelId, data);
+      showToast('飯店資訊已更新');
+    } else {
+      addHotel(data);
+      showToast('飯店已新增');
+    }
+    state.editingHotelId = null;
+    state.tempHotelPdf = null;
+    closeModal('hotelModal');
+    render();
+  });
+
+  document.getElementById('hotelPdf').addEventListener('change', e => {
+    const file = e.target.files[0];
+    showPhotoError('hotelPdfError', null);
+    if (!file) return;
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      const msg = '上傳失敗：請選擇 PDF 檔案';
+      showPhotoError('hotelPdfError', msg);
+      showToast(msg, 'error');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_PDF_SIZE) {
+      const msg = `上傳失敗：檔案太大（${formatFileSize(file.size)}），上限為 2 MB。請壓縮後再試。`;
+      showPhotoError('hotelPdfError', msg);
+      showToast(msg, 'error');
+      e.target.value = '';
+      state.tempHotelPdf = null;
+      document.getElementById('hotelPdfPreview').classList.add('hidden');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      state.tempHotelPdf = { name: file.name, data: ev.target.result };
+      document.getElementById('hotelPdfName').textContent = file.name;
+      document.getElementById('hotelPdfPreview').classList.remove('hidden');
+      showPhotoError('hotelPdfError', null);
+    };
+    reader.onerror = () => {
+      const msg = '上傳失敗：無法讀取此 PDF，請換一個檔案再試';
+      showPhotoError('hotelPdfError', msg);
+      showToast(msg, 'error');
+      e.target.value = '';
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('btnClearHotelPdf').addEventListener('click', () => {
+    state.tempHotelPdf = null;
+    document.getElementById('hotelPdf').value = '';
+    document.getElementById('hotelPdfPreview').classList.add('hidden');
+    showPhotoError('hotelPdfError', null);
+  });
+
   // Export / Print
   document.getElementById('btnExport').addEventListener('click', () => {
     const trip = getCurrentTrip();
@@ -1462,6 +1658,36 @@ function bindEvents() {
       return;
     }
 
+    // Hotels
+    const editHotel = e.target.closest('.edit-hotel');
+    if (editHotel) {
+      const trip = getCurrentTrip();
+      const item = trip.hotels.find(i => i.id === editHotel.dataset.id);
+      if (item) openHotelModal(item);
+      return;
+    }
+    const delHotel = e.target.closest('.del-hotel');
+    if (delHotel) {
+      if (confirm('確定刪除此飯店資訊？')) {
+        deleteHotel(delHotel.dataset.id);
+        showToast('已刪除');
+        render();
+      }
+      return;
+    }
+    const dlPdf = e.target.closest('.download-hotel-pdf');
+    if (dlPdf) {
+      const trip = getCurrentTrip();
+      const item = trip.hotels.find(i => i.id === dlPdf.dataset.id);
+      if (item && item.pdf && item.pdf.data) {
+        const a = document.createElement('a');
+        a.href = item.pdf.data;
+        a.download = item.pdf.name || 'booking.pdf';
+        a.click();
+      }
+      return;
+    }
+
     // Select trip
     const tripBtn = e.target.closest('[data-trip-id]');
     if (tripBtn) {
@@ -1567,6 +1793,30 @@ function openTimetableModal(item = null) {
   document.getElementById('ttUrl').value = item ? item.url : '';
   document.getElementById('ttNotes').value = item ? item.notes : '';
   openModal('timetableModal');
+}
+
+function openHotelModal(item = null) {
+  state.editingHotelId = item ? item.id : null;
+  state.tempHotelPdf = null;
+  document.getElementById('hotelModalTitle').textContent = item ? '編輯飯店' : '新增飯店';
+  document.getElementById('hotelName').value = item ? item.name : '';
+  document.getElementById('hotelCheckInDate').value = item ? item.checkInDate : '';
+  document.getElementById('hotelCheckOutDate').value = item ? item.checkOutDate : '';
+  document.getElementById('hotelCheckInTime').value = item ? item.checkInTime : '';
+  document.getElementById('hotelCheckOutTime').value = item ? item.checkOutTime : '';
+  document.getElementById('hotelBreakfast').value = item ? item.breakfast : 'unknown';
+  document.getElementById('hotelFacilities').value = item ? item.facilities : '';
+  document.getElementById('hotelNotes').value = item ? item.notes : '';
+  document.getElementById('hotelPdf').value = '';
+  showPhotoError('hotelPdfError', null);
+  if (item && item.pdf) {
+    state.tempHotelPdf = item.pdf;
+    document.getElementById('hotelPdfName').textContent = item.pdf.name || 'booking.pdf';
+    document.getElementById('hotelPdfPreview').classList.remove('hidden');
+  } else {
+    document.getElementById('hotelPdfPreview').classList.add('hidden');
+  }
+  openModal('hotelModal');
 }
 
 // ========== Init ==========
