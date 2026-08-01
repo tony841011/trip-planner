@@ -1511,6 +1511,78 @@ function bindEvents() {
 
   document.getElementById('btnPrint').addEventListener('click', () => window.print());
 
+  // Import
+  function triggerImport() {
+    document.getElementById('importFileInput').value = '';
+    document.getElementById('importFileInput').click();
+  }
+
+  document.getElementById('btnImportTrip').addEventListener('click', triggerImport);
+  const btnEmptyImport = document.getElementById('btnEmptyImport');
+  if (btnEmptyImport) btnEmptyImport.addEventListener('click', triggerImport);
+
+  document.getElementById('importFileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const raw = JSON.parse(ev.target.result);
+        // Support either a single trip object, or { trips: [...] }
+        let tripsToImport = [];
+        if (Array.isArray(raw)) {
+          tripsToImport = raw;
+        } else if (raw && Array.isArray(raw.trips)) {
+          tripsToImport = raw.trips;
+        } else if (raw && (raw.name || raw.days)) {
+          tripsToImport = [raw];
+        } else {
+          throw new Error('不是有效的行程 JSON');
+        }
+
+        let imported = 0;
+        tripsToImport.forEach(t => {
+          if (!t || typeof t !== 'object') return;
+          // 重新產生 id，避免與現有行程衝突
+          const trip = ensureTripData({
+            ...t,
+            id: uid(),
+            name: t.name || '匯入的行程',
+            destination: t.destination || '',
+            startDate: t.startDate || '',
+            endDate: t.endDate || '',
+            days: Array.isArray(t.days) ? t.days : [],
+            createdAt: t.createdAt || new Date().toISOString()
+          });
+          // 若沒有 days 但有起迄日期，重建空白天數
+          if ((!trip.days || trip.days.length === 0) && trip.startDate && trip.endDate) {
+            trip.days = daysBetween(trip.startDate, trip.endDate).map(d => ({ date: d, activities: [] }));
+          }
+          state.trips.unshift(trip);
+          imported++;
+        });
+
+        if (imported === 0) {
+          showToast('檔案中沒有可匯入的行程', 'error');
+          return;
+        }
+
+        state.currentTripId = state.trips[0].id;
+        state.currentDayIndex = 0;
+        state.currentTab = 'itinerary';
+        saveData();
+        closeAllModals();
+        render();
+        showToast(imported === 1 ? `已匯入行程「${state.trips[0].name}」` : `已匯入 ${imported} 個行程`);
+      } catch (err) {
+        console.warn(err);
+        showToast('匯入失敗：請確認這是本工具匯出的 JSON 檔', 'error');
+      }
+    };
+    reader.onerror = () => showToast('讀取檔案失敗', 'error');
+    reader.readAsText(file);
+  });
+
   // Close modals
   document.querySelectorAll('[data-close]').forEach(btn => {
     btn.addEventListener('click', () => closeAllModals());

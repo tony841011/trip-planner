@@ -57,9 +57,14 @@
       </div>
       <h2 class="text-2xl font-bold text-slate-800 mb-2">開始規劃你的下一段旅程</h2>
       <p class="text-slate-500 mb-8 max-w-md mx-auto">建立多日行程、航班、行李清單、費用與購物清單，資料自動儲存在瀏覽器。</p>
-      <button id="btnEmptyNew" class="btn-primary text-base px-6 py-3">
-        <i class="fas fa-plus mr-2"></i>建立第一個行程
-      </button>
+      <div class="flex flex-col sm:flex-row gap-3 justify-center">
+        <button id="btnEmptyNew" class="btn-primary text-base px-6 py-3">
+          <i class="fas fa-plus mr-2"></i>建立第一個行程
+        </button>
+        <button id="btnEmptyImport" class="btn-ghost text-base px-6 py-3 border border-slate-200">
+          <i class="fas fa-file-import mr-2"></i>匯入行程 JSON
+        </button>
+      </div>
     </div>
 
     <!-- Trip View (hidden by default) -->
@@ -767,6 +772,13 @@
         <button class="modal-close" data-close>&times;</button>
       </div>
       <div class="modal-body">
+        <div class="mb-3">
+          <button id="btnImportTrip" class="btn-primary w-full text-sm">
+            <i class="fas fa-file-import mr-1.5"></i>匯入行程（JSON）
+          </button>
+          <p class="text-xs text-slate-400 mt-1.5 text-center">選擇先前匯出的 .json 檔即可還原行程</p>
+          <input type="file" id="importFileInput" class="hidden" accept=".json,application/json" />
+        </div>
         <div id="tripsList" class="space-y-2 max-h-80 overflow-y-auto"></div>
         <p id="noTripsMsg" class="text-center text-slate-400 py-8 hidden">尚無儲存的行程</p>
         <div class="mt-4 pt-4 border-t border-slate-100">
