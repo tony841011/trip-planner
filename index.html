@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>旅遊行程規劃工具 | Trip Planner</title>
+  <meta name="description" content="免費的靜態旅遊行程規劃工具，可部署於 GitHub Pages" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: { 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e' },
+            accent: { 500: '#f59e0b', 600: '#d97706' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <!-- Navbar -->
+  <nav class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center h-16">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center text-white shadow-md">
+            <i class="fas fa-map-marked-alt text-lg"></i>
+          </div>
+          <div>
+            <h1 class="text-lg font-bold text-slate-900 leading-tight">旅遊行程規劃</h1>
+            <p class="text-xs text-slate-500 -mt-0.5">Trip Planner</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnMyTrips" class="btn-ghost hidden sm:inline-flex">
+            <i class="fas fa-folder-open mr-2"></i>我的行程
+          </button>
+          <button id="btnNewTrip" class="btn-primary">
+            <i class="fas fa-plus mr-2"></i>新增行程
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <!-- Empty State -->
+    <div id="emptyState" class="text-center py-20">
+      <div class="w-24 h-24 mx-auto mb-6 rounded-full bg-primary-100 flex items-center justify-center">
+        <i class="fas fa-plane-departure text-4xl text-primary-500"></i>
+      </div>
+      <h2 class="text-2xl font-bold text-slate-800 mb-2">開始規劃你的下一段旅程</h2>
+      <p class="text-slate-500 mb-8 max-w-md mx-auto">建立多日行程、航班、行李清單、費用與購物清單，資料自動儲存在瀏覽器。</p>
+      <button id="btnEmptyNew" class="btn-primary text-base px-6 py-3">
+        <i class="fas fa-plus mr-2"></i>建立第一個行程
+      </button>
+    </div>
+
+    <!-- Trip View (hidden by default) -->
+    <div id="tripView" class="hidden">
+      <!-- Trip Header -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 mb-4">
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div class="flex-1">
+            <div class="flex items-center gap-2 mb-1">
+              <span id="tripDestinationBadge" class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                <i class="fas fa-map-marker-alt mr-1"></i><span id="tripDestinationText">目的地</span>
+              </span>
+              <span id="tripDateRange" class="text-sm text-slate-500"></span>
+            </div>
+            <h2 id="tripTitle" class="text-2xl font-bold text-slate-900"></h2>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="btnEditTrip" class="btn-ghost text-sm">
+              <i class="fas fa-edit mr-1.5"></i>編輯
+            </button>
+            <button id="btnExport" class="btn-ghost text-sm">
+              <i class="fas fa-download mr-1.5"></i>匯出
+            </button>
+            <button id="btnPrint" class="btn-ghost text-sm">
+              <i class="fas fa-print mr-1.5"></i>列印
+            </button>
+            <button id="btnDeleteTrip" class="btn-danger text-sm">
+              <i class="fas fa-trash-alt mr-1.5"></i>刪除
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab Navigation -->
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-6 overflow-x-auto">
+        <div class="flex border-b border-slate-100 min-w-max">
+          <button class="tab-btn active" data-tab="itinerary">
+            <i class="fas fa-calendar-alt mr-1.5"></i>行程安排
+          </button>
+          <button class="tab-btn" data-tab="flights">
+            <i class="fas fa-plane mr-1.5"></i>航班資訊
+          </button>
+          <button class="tab-btn" data-tab="packing">
+            <i class="fas fa-suitcase mr-1.5"></i>行李清單
+          </button>
+          <button class="tab-btn" data-tab="expenses">
+            <i class="fas fa-receipt mr-1.5"></i>費用支出
+          </button>
+          <button class="tab-btn" data-tab="shopping">
+            <i class="fas fa-shopping-cart mr-1.5"></i>需購買清單
+          </button>
+          <button class="tab-btn" data-tab="transport">
+            <i class="fas fa-train mr-1.5"></i>交通資訊
+          </button>
+        </div>
+      </div>
+
+      <!-- ========== TAB: 行程安排 ========== -->
+      <div id="tab-itinerary" class="tab-content">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- Days Sidebar -->
+          <div class="lg:col-span-3">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sticky top-24">
+              <h3 class="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">行程日期</h3>
+              <div id="daysList" class="space-y-1.5 max-h-[60vh] overflow-y-auto pr-1"></div>
+            </div>
+          </div>
+
+          <!-- Day Content -->
+          <div class="lg:col-span-9 space-y-6">
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-800">
+                  <span id="currentDayLabel">第 1 天</span>
+                  <span id="currentDayDate" class="text-slate-500 font-normal ml-2 text-sm"></span>
+                </h3>
+                <button id="btnAddActivity" class="btn-primary text-sm py-1.5 px-3">
+                  <i class="fas fa-plus mr-1.5"></i>新增活動
+                </button>
+              </div>
+              <div id="activitiesList" class="divide-y divide-slate-100 min-h-[120px]"></div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+              <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-800"><i class="fas fa-map mr-2 text-primary-500"></i>地圖</h3>
+                <span class="text-xs text-slate-400">點擊活動可聚焦位置</span>
+              </div>
+              <div id="map" class="h-80 w-full bg-slate-100"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== TAB: 航班資訊 ========== -->
+      <div id="tab-flights" class="tab-content hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <!-- 去程 -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <i class="fas fa-plane-departure text-primary-500"></i>去程航班
+            </h3>
+            <form id="outboundFlightForm" class="space-y-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="label">航空公司</label>
+                  <input type="text" id="outAirline" class="input" placeholder="例如：長榮航空" />
+                </div>
+                <div>
+                  <label class="label">航班編號</label>
+                  <input type="text" id="outFlightNo" class="input" placeholder="例如：BR108" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="label">出發機場</label>
+                  <input type="text" id="outFrom" class="input" placeholder="TPE 台北桃園" />
+                </div>
+                <div>
+                  <label class="label">抵達機場</label>
+                  <input type="text" id="outTo" class="input" placeholder="NRT 東京成田" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="label">出發日期</label>
+                  <input type="date" id="outDepartDate" class="input" />
+                </div>
+                <div>
+                  <label class="label">出發時間</label>
+                  <input type="time" id="outDepartTime" class="input" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="label">抵達日期</label>
+                  <input type="date" id="outArriveDate" class="input" />
+                </div>
+                <div>
+                  <label class="label">抵達時間</label>
+                  <input type="time" id="outArriveTime" class="input" />
+                </div>
+              </div>
+              <div>
+                <label class="label">行李重量限制</label>
+                <input type="text" id="outBaggage" class="input" placeholder="例如：免費托運 23kg × 2、手提 7kg" />
+              </div>
+              <div>
+                <label class="label">備註</label>
+                <textarea id="outNotes" class="input" rows="2" placeholder="訂位代號、餐食、座位等"></textarea>
+              </div>
+              <button type="submit" class="btn-primary w-full">儲存去程航班</button>
+            </form>
+          </div>
+
+          <!-- 回程 -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <h3 class="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+              <i class="fas fa-plane-arrival text-primary-500"></i>回程航班
+            </h3>
+            <form id="returnFlightForm" class="space-y-3">
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="label">航空公司</label>
+                  <input type="text" id="retAirline" class="input" placeholder="例如：長榮航空" />
+                </div>
+                <div>
+                  <label class="label">航班編號</label>
+                  <input type="text" id="retFlightNo" class="input" placeholder="例如：BR107" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="label">出發機場</label>
+                  <input type="text" id="retFrom" class="input" placeholder="NRT 東京成田" />
+                </div>
+                <div>
+                  <label class="label">抵達機場</label>
+                  <input type="text" id="retTo" class="input" placeholder="TPE 台北桃園" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="label">出發日期</label>
+                  <input type="date" id="retDepartDate" class="input" />
+                </div>
+                <div>
+                  <label class="label">出發時間</label>
+                  <input type="time" id="retDepartTime" class="input" />
+                </div>
+              </div>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="label">抵達日期</label>
+                  <input type="date" id="retArriveDate" class="input" />
+                </div>
+                <div>
+                  <label class="label">抵達時間</label>
+                  <input type="time" id="retArriveTime" class="input" />
+                </div>
+              </div>
+              <div>
+                <label class="label">行李重量限制</label>
+                <input type="text" id="retBaggage" class="input" placeholder="例如：免費托運 23kg × 2、手提 7kg" />
+              </div>
+              <div>
+                <label class="label">備註</label>
+                <textarea id="retNotes" class="input" rows="2" placeholder="訂位代號、餐食、座位等"></textarea>
+              </div>
+              <button type="submit" class="btn-primary w-full">儲存回程航班</button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== TAB: 行李清單 ========== -->
+      <div id="tab-packing" class="tab-content hidden">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="font-semibold text-slate-800"><i class="fas fa-suitcase mr-2 text-primary-500"></i>行李清單</h3>
+            <div class="flex gap-2">
+              <button id="btnLoadDefaultPacking" class="btn-ghost text-sm">
+                <i class="fas fa-magic mr-1.5"></i>載入預設清單
+              </button>
+              <button id="btnAddPacking" class="btn-primary text-sm py-1.5 px-3">
+                <i class="fas fa-plus mr-1.5"></i>新增項目
+              </button>
+            </div>
+          </div>
+          <div id="packingList" class="p-4 space-y-6 min-h-[200px]"></div>
+        </div>
+      </div>
+
+      <!-- ========== TAB: 費用支出 ========== -->
+      <div id="tab-expenses" class="tab-content hidden">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 class="font-semibold text-slate-800"><i class="fas fa-receipt mr-2 text-primary-500"></i>費用支出</h3>
+              <p id="expenseSummary" class="text-sm text-slate-500 mt-0.5"></p>
+            </div>
+            <button id="btnAddExpense" class="btn-primary text-sm py-1.5 px-3">
+              <i class="fas fa-plus mr-1.5"></i>新增支出
+            </button>
+          </div>
+          <div id="expensesList" class="divide-y divide-slate-100 min-h-[200px]"></div>
+        </div>
+      </div>
+
+      <!-- ========== TAB: 需購買清單 ========== -->
+      <div id="tab-shopping" class="tab-content hidden">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="font-semibold text-slate-800"><i class="fas fa-shopping-cart mr-2 text-primary-500"></i>需購買清單</h3>
+            <button id="btnAddShopping" class="btn-primary text-sm py-1.5 px-3">
+              <i class="fas fa-plus mr-1.5"></i>新增項目
+            </button>
+          </div>
+          <div id="shoppingList" class="p-4 space-y-4 min-h-[200px]"></div>
+        </div>
+      </div>
+
+      <!-- ========== TAB: 交通資訊 ========== -->
+      <div id="tab-transport" class="tab-content hidden">
+        <div class="space-y-6">
+          <!-- 路線圖 -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <h3 class="font-semibold text-slate-800">
+                <i class="fas fa-route mr-2 text-primary-500"></i>路線圖
+              </h3>
+              <button id="btnAddRoute" class="btn-primary text-sm py-1.5 px-3">
+                <i class="fas fa-plus mr-1.5"></i>新增路線圖
+              </button>
+            </div>
+            <div id="routeList" class="p-4 space-y-3 min-h-[120px]"></div>
+          </div>
+
+          <!-- 時刻表連結 -->
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <h3 class="font-semibold text-slate-800">
+                <i class="fas fa-clock mr-2 text-primary-500"></i>時刻表查詢
+              </h3>
+              <button id="btnAddTimetable" class="btn-primary text-sm py-1.5 px-3">
+                <i class="fas fa-plus mr-1.5"></i>新增時刻表連結
+              </button>
+            </div>
+            <div id="timetableList" class="p-4 space-y-3 min-h-[120px]"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal: New / Edit Trip -->
+  <div id="tripModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel max-w-lg">
+      <div class="modal-header">
+        <h3 id="tripModalTitle" class="text-lg font-bold">新增行程</h3>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <form id="tripForm" class="modal-body space-y-4">
+        <div>
+          <label class="label">行程名稱 *</label>
+          <input type="text" id="tripName" class="input" placeholder="例如：東京五日遊" required />
+        </div>
+        <div>
+          <label class="label">目的地 *</label>
+          <input type="text" id="tripDest" class="input" placeholder="例如：東京、日本" required />
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">開始日期 *</label>
+            <input type="date" id="tripStart" class="input" required />
+          </div>
+          <div>
+            <label class="label">結束日期 *</label>
+            <input type="date" id="tripEnd" class="input" required />
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" class="btn-ghost" data-close>取消</button>
+          <button type="submit" class="btn-primary">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Activity -->
+  <div id="activityModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel max-w-lg">
+      <div class="modal-header">
+        <h3 id="activityModalTitle" class="text-lg font-bold">新增活動</h3>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <form id="activityForm" class="modal-body space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">時間</label>
+            <input type="time" id="actTime" class="input" />
+          </div>
+          <div>
+            <label class="label">類型</label>
+            <select id="actCategory" class="input">
+              <option value="sightseeing">景點</option>
+              <option value="food">美食</option>
+              <option value="transport">交通</option>
+              <option value="hotel">住宿</option>
+              <option value="shopping">購物</option>
+              <option value="other">其他</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="label">活動名稱 *</label>
+          <input type="text" id="actTitle" class="input" placeholder="例如：淺草寺" required />
+        </div>
+        <div>
+          <label class="label">地點</label>
+          <div class="flex gap-2">
+            <input type="text" id="actLocation" class="input flex-1" placeholder="地址或地標名稱" />
+            <button type="button" id="btnGeocode" class="btn-ghost px-3" title="搜尋座標">
+              <i class="fas fa-search-location"></i>
+            </button>
+          </div>
+          <p id="geocodeStatus" class="text-xs text-slate-400 mt-1 hidden"></p>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="label">緯度 (選填)</label>
+            <input type="number" step="any" id="actLat" class="input" placeholder="35.7148" />
+          </div>
+          <div>
+            <label class="label">經度 (選填)</label>
+            <input type="number" step="any" id="actLng" class="input" placeholder="139.7967" />
+          </div>
+        </div>
+        <div>
+          <label class="label">備註</label>
+          <textarea id="actNotes" class="input" rows="2" placeholder="門票、開放時間、注意事項…"></textarea>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" class="btn-ghost" data-close>取消</button>
+          <button type="submit" class="btn-primary">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Packing Item -->
+  <div id="packingModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel max-w-md">
+      <div class="modal-header">
+        <h3 id="packingModalTitle" class="text-lg font-bold">新增行李項目</h3>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <form id="packingForm" class="modal-body space-y-4">
+        <div>
+          <label class="label">類別 *</label>
+          <select id="packCategory" class="input">
+            <option value="衣物">衣物</option>
+            <option value="盥洗用品">盥洗用品</option>
+            <option value="電子產品">電子產品</option>
+            <option value="證件文件">證件文件</option>
+            <option value="藥品">藥品</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">項目名稱 *</label>
+          <input type="text" id="packName" class="input" placeholder="例如：換洗衣物 ×3" required />
+        </div>
+        <div>
+          <label class="label">數量</label>
+          <input type="number" id="packQty" class="input" min="1" value="1" />
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" class="btn-ghost" data-close>取消</button>
+          <button type="submit" class="btn-primary">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Expense -->
+  <div id="expenseModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel max-w-md">
+      <div class="modal-header">
+        <h3 id="expenseModalTitle" class="text-lg font-bold">新增支出</h3>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <form id="expenseForm" class="modal-body space-y-4">
+        <div>
+          <label class="label">分類 *</label>
+          <select id="expCategory" class="input">
+            <option value="吃飯">吃飯</option>
+            <option value="伴手禮">伴手禮</option>
+            <option value="交通費">交通費</option>
+            <option value="代買">代買</option>
+            <option value="住宿">住宿</option>
+            <option value="門票">門票</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">項目名稱 *</label>
+          <input type="text" id="expName" class="input" placeholder="例如：一蘭拉麵" required />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">金額 *</label>
+            <input type="number" id="expAmount" class="input" step="0.01" min="0" placeholder="0" required />
+          </div>
+          <div>
+            <label class="label">幣別</label>
+            <select id="expCurrency" class="input">
+              <option value="TWD">TWD 台幣</option>
+              <option value="JPY">JPY 日圓</option>
+              <option value="USD">USD 美元</option>
+              <option value="EUR">EUR 歐元</option>
+              <option value="KRW">KRW 韓元</option>
+              <option value="CNY">CNY 人民幣</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="label">日期</label>
+          <input type="date" id="expDate" class="input" />
+        </div>
+        <div class="flex items-center gap-2">
+          <input type="checkbox" id="expTaxRefund" class="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" />
+          <label for="expTaxRefund" class="text-sm text-slate-700">可退稅</label>
+        </div>
+        <div>
+          <label class="label">備註</label>
+          <textarea id="expNotes" class="input" rows="2" placeholder="發票號碼、店家等"></textarea>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" class="btn-ghost" data-close>取消</button>
+          <button type="submit" class="btn-primary">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Shopping Item -->
+  <div id="shoppingModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel max-w-md">
+      <div class="modal-header">
+        <h3 id="shoppingModalTitle" class="text-lg font-bold">新增需購買項目</h3>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <form id="shoppingForm" class="modal-body space-y-4">
+        <div>
+          <label class="label">分類 *</label>
+          <select id="shopCategory" class="input">
+            <option value="伴手禮">伴手禮</option>
+            <option value="衣服">衣服</option>
+            <option value="食品">食品</option>
+            <option value="藥妝">藥妝</option>
+            <option value="電子產品">電子產品</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">項目名稱 *</label>
+          <input type="text" id="shopName" class="input" placeholder="例如：白色戀人巧克力" required />
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="label">需購買數量 *</label>
+            <input type="number" id="shopQty" class="input" min="1" value="1" required />
+          </div>
+          <div>
+            <label class="label">誰要買</label>
+            <input type="text" id="shopBuyer" class="input" placeholder="例如：自己 / 媽媽" />
+          </div>
+        </div>
+        <div>
+          <label class="label">參考照片</label>
+          <input type="file" id="shopPhoto" class="input" accept="image/*" />
+          <div id="shopPhotoPreview" class="mt-2 hidden">
+            <img id="shopPhotoImg" class="max-h-32 rounded-lg border border-slate-200" />
+            <button type="button" id="btnClearPhoto" class="text-xs text-red-500 mt-1">清除照片</button>
+          </div>
+        </div>
+        <div>
+          <label class="label">備註</label>
+          <textarea id="shopNotes" class="input" rows="2" placeholder="規格、店家、注意事項…"></textarea>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" class="btn-ghost" data-close>取消</button>
+          <button type="submit" class="btn-primary">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Route Map -->
+  <div id="routeModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel max-w-md">
+      <div class="modal-header">
+        <h3 id="routeModalTitle" class="text-lg font-bold">新增路線圖</h3>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <form id="routeForm" class="modal-body space-y-4">
+        <div>
+          <label class="label">標題 *</label>
+          <input type="text" id="routeTitle" class="input" placeholder="例如：東京地鐵路線圖 / 機場到飯店" required />
+        </div>
+        <div>
+          <label class="label">路線圖圖片</label>
+          <input type="file" id="routePhoto" class="input" accept="image/*" />
+          <div id="routePhotoPreview" class="mt-2 hidden">
+            <img id="routePhotoImg" class="max-h-40 rounded-lg border border-slate-200 w-full object-contain" />
+            <button type="button" id="btnClearRoutePhoto" class="text-xs text-red-500 mt-1">清除圖片</button>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">建議上傳路線圖截圖或照片（小於 1.5MB）</p>
+        </div>
+        <div>
+          <label class="label">備註</label>
+          <textarea id="routeNotes" class="input" rows="2" placeholder="例如：搭乘 JR Yamanote Line 到新宿"></textarea>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" class="btn-ghost" data-close>取消</button>
+          <button type="submit" class="btn-primary">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Timetable Link -->
+  <div id="timetableModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel max-w-md">
+      <div class="modal-header">
+        <h3 id="timetableModalTitle" class="text-lg font-bold">新增時刻表連結</h3>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <form id="timetableForm" class="modal-body space-y-4">
+        <div>
+          <label class="label">名稱 *</label>
+          <input type="text" id="ttTitle" class="input" placeholder="例如：JR 東日本時刻表 / 地鐵官方" required />
+        </div>
+        <div>
+          <label class="label">連結網址 *</label>
+          <input type="url" id="ttUrl" class="input" placeholder="https://..." required />
+        </div>
+        <div>
+          <label class="label">備註</label>
+          <textarea id="ttNotes" class="input" rows="2" placeholder="例如：查詢成田機場到東京車站"></textarea>
+        </div>
+        <div class="flex justify-end gap-3 pt-2">
+          <button type="button" class="btn-ghost" data-close>取消</button>
+          <button type="submit" class="btn-primary">儲存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: My Trips -->
+  <div id="tripsModal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-panel max-w-md">
+      <div class="modal-header">
+        <h3 class="text-lg font-bold">我的行程</h3>
+        <button class="modal-close" data-close>&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="tripsList" class="space-y-2 max-h-80 overflow-y-auto"></div>
+        <p id="noTripsMsg" class="text-center text-slate-400 py-8 hidden">尚無儲存的行程</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 z-[100] hidden">
+    <div class="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 text-sm">
+      <i id="toastIcon" class="fas fa-check-circle text-green-400"></i>
+      <span id="toastMsg"></span>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZsMNNqXyAnvkPVCJmTvLJScDxo=" crossorigin=""></script>
+  <script src="app.js"></script>
+</body>
+</html>
