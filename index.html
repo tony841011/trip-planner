@@ -37,11 +37,11 @@
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <button id="btnMyTrips" class="btn-ghost hidden sm:inline-flex">
-            <i class="fas fa-folder-open mr-2"></i>我的行程
+          <button id="btnMyTrips" class="btn-ghost text-sm">
+            <i class="fas fa-folder-open mr-1.5"></i>我的行程
           </button>
-          <button id="btnNewTrip" class="btn-primary">
-            <i class="fas fa-plus mr-2"></i>新增行程
+          <button id="btnNewTrip" class="btn-primary text-sm">
+            <i class="fas fa-plus mr-1.5"></i>新增行程
           </button>
         </div>
       </div>
@@ -588,6 +588,8 @@
         <div>
           <label class="label">參考照片</label>
           <input type="file" id="shopPhoto" class="input" accept="image/*" />
+          <p class="text-xs text-slate-400 mt-1">僅支援圖片，檔案大小上限 <strong>1.5 MB</strong>。超過會上傳失敗。</p>
+          <p id="shopPhotoError" class="text-xs text-red-500 mt-1 hidden"></p>
           <div id="shopPhotoPreview" class="mt-2 hidden">
             <img id="shopPhotoImg" class="max-h-32 rounded-lg border border-slate-200" />
             <button type="button" id="btnClearPhoto" class="text-xs text-red-500 mt-1">清除照片</button>
@@ -621,11 +623,12 @@
         <div>
           <label class="label">路線圖圖片</label>
           <input type="file" id="routePhoto" class="input" accept="image/*" />
+          <p class="text-xs text-slate-400 mt-1">建議上傳路線圖截圖。僅支援圖片，檔案大小上限 <strong>1.5 MB</strong>。超過會上傳失敗。</p>
+          <p id="routePhotoError" class="text-xs text-red-500 mt-1 hidden"></p>
           <div id="routePhotoPreview" class="mt-2 hidden">
             <img id="routePhotoImg" class="max-h-40 rounded-lg border border-slate-200 w-full object-contain" />
             <button type="button" id="btnClearRoutePhoto" class="text-xs text-red-500 mt-1">清除圖片</button>
           </div>
-          <p class="text-xs text-slate-400 mt-1">建議上傳路線圖截圖或照片（小於 1.5MB）</p>
         </div>
         <div>
           <label class="label">備註</label>
@@ -679,6 +682,12 @@
       <div class="modal-body">
         <div id="tripsList" class="space-y-2 max-h-80 overflow-y-auto"></div>
         <p id="noTripsMsg" class="text-center text-slate-400 py-8 hidden">尚無儲存的行程</p>
+        <div class="mt-4 pt-4 border-t border-slate-100">
+          <button id="btnClearAllData" class="btn-danger w-full text-sm">
+            <i class="fas fa-trash-alt mr-1.5"></i>清除所有資料
+          </button>
+          <p class="text-xs text-slate-400 mt-2 text-center">會刪除本裝置上所有行程與相關資料，且無法復原</p>
+        </div>
       </div>
     </div>
   </div>

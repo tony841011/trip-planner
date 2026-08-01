@@ -94,7 +94,46 @@ function showToast(msg, type = 'success') {
     ? 'fas fa-check-circle text-green-400'
     : 'fas fa-exclamation-circle text-amber-400';
   toast.classList.remove('hidden');
-  setTimeout(() => toast.classList.add('hidden'), 2800);
+  const duration = type === 'error' ? 4500 : 2800;
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.classList.add('hidden'), duration);
+}
+
+const MAX_PHOTO_SIZE = 1.5 * 1024 * 1024; // 1.5 MB
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+}
+
+function showPhotoError(elId, msg) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  if (msg) {
+    el.textContent = msg;
+    el.classList.remove('hidden');
+  } else {
+    el.textContent = '';
+    el.classList.add('hidden');
+  }
+}
+
+function clearAllData() {
+  localStorage.removeItem('trip-planner-data-v2');
+  localStorage.removeItem('trip-planner-data-v1');
+  state.trips = [];
+  state.currentTripId = null;
+  state.currentDayIndex = 0;
+  state.currentTab = 'itinerary';
+  if (state.map) {
+    try { state.map.remove(); } catch (e) {}
+    state.map = null;
+    state.markers = [];
+  }
+  showToast('已清除所有資料');
+  closeAllModals();
+  render();
 }
 
 function emptyFlight() {
@@ -909,6 +948,15 @@ function bindEvents() {
     openModal('tripsModal');
   });
 
+  // Clear all data
+  document.getElementById('btnClearAllData').addEventListener('click', () => {
+    if (confirm('確定要清除本裝置上的「所有行程資料」嗎？\n\n包含行程、航班、行李、費用、購物清單、交通資訊等，此操作無法復原。')) {
+      if (confirm('再次確認：真的要全部刪除嗎？')) {
+        clearAllData();
+      }
+    }
+  });
+
   // Trip form
   document.getElementById('tripForm').addEventListener('submit', e => {
     e.preventDefault();
@@ -1116,13 +1164,25 @@ function bindEvents() {
     render();
   });
 
-  // Photo handling
+  // Photo handling (shopping)
   document.getElementById('shopPhoto').addEventListener('change', e => {
     const file = e.target.files[0];
+    showPhotoError('shopPhotoError', null);
     if (!file) return;
-    if (file.size > 1.5 * 1024 * 1024) {
-      showToast('照片請小於 1.5MB（避免佔用太多空間）', 'error');
+    if (!file.type.startsWith('image/')) {
+      const msg = '上傳失敗：請選擇圖片檔案（JPG、PNG、WebP 等）';
+      showPhotoError('shopPhotoError', msg);
+      showToast(msg, 'error');
       e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_PHOTO_SIZE) {
+      const msg = `上傳失敗：檔案太大（${formatFileSize(file.size)}），上限為 1.5 MB。請壓縮後再試。`;
+      showPhotoError('shopPhotoError', msg);
+      showToast(msg, 'error');
+      e.target.value = '';
+      state.tempPhotoBase64 = null;
+      document.getElementById('shopPhotoPreview').classList.add('hidden');
       return;
     }
     const reader = new FileReader();
@@ -1130,6 +1190,13 @@ function bindEvents() {
       state.tempPhotoBase64 = ev.target.result;
       document.getElementById('shopPhotoImg').src = ev.target.result;
       document.getElementById('shopPhotoPreview').classList.remove('hidden');
+      showPhotoError('shopPhotoError', null);
+    };
+    reader.onerror = () => {
+      const msg = '上傳失敗：無法讀取此檔案，請換一張圖片再試';
+      showPhotoError('shopPhotoError', msg);
+      showToast(msg, 'error');
+      e.target.value = '';
     };
     reader.readAsDataURL(file);
   });
@@ -1138,6 +1205,7 @@ function bindEvents() {
     state.tempPhotoBase64 = null;
     document.getElementById('shopPhoto').value = '';
     document.getElementById('shopPhotoPreview').classList.add('hidden');
+    showPhotoError('shopPhotoError', null);
   });
 
   // Transport - Route
@@ -1168,10 +1236,22 @@ function bindEvents() {
 
   document.getElementById('routePhoto').addEventListener('change', e => {
     const file = e.target.files[0];
+    showPhotoError('routePhotoError', null);
     if (!file) return;
-    if (file.size > 1.5 * 1024 * 1024) {
-      showToast('圖片請小於 1.5MB', 'error');
+    if (!file.type.startsWith('image/')) {
+      const msg = '上傳失敗：請選擇圖片檔案（JPG、PNG、WebP 等）';
+      showPhotoError('routePhotoError', msg);
+      showToast(msg, 'error');
       e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_PHOTO_SIZE) {
+      const msg = `上傳失敗：檔案太大（${formatFileSize(file.size)}），上限為 1.5 MB。請壓縮後再試。`;
+      showPhotoError('routePhotoError', msg);
+      showToast(msg, 'error');
+      e.target.value = '';
+      state.tempRoutePhotoBase64 = null;
+      document.getElementById('routePhotoPreview').classList.add('hidden');
       return;
     }
     const reader = new FileReader();
@@ -1179,6 +1259,13 @@ function bindEvents() {
       state.tempRoutePhotoBase64 = ev.target.result;
       document.getElementById('routePhotoImg').src = ev.target.result;
       document.getElementById('routePhotoPreview').classList.remove('hidden');
+      showPhotoError('routePhotoError', null);
+    };
+    reader.onerror = () => {
+      const msg = '上傳失敗：無法讀取此檔案，請換一張圖片再試';
+      showPhotoError('routePhotoError', msg);
+      showToast(msg, 'error');
+      e.target.value = '';
     };
     reader.readAsDataURL(file);
   });
@@ -1187,6 +1274,7 @@ function bindEvents() {
     state.tempRoutePhotoBase64 = null;
     document.getElementById('routePhoto').value = '';
     document.getElementById('routePhotoPreview').classList.add('hidden');
+    showPhotoError('routePhotoError', null);
   });
 
   // Transport - Timetable
@@ -1443,6 +1531,7 @@ function openShoppingModal(item = null) {
   document.getElementById('shopBuyer').value = item ? item.buyer : '';
   document.getElementById('shopNotes').value = item ? item.notes : '';
   document.getElementById('shopPhoto').value = '';
+  showPhotoError('shopPhotoError', null);
   if (item && item.photo) {
     state.tempPhotoBase64 = item.photo;
     document.getElementById('shopPhotoImg').src = item.photo;
@@ -1460,6 +1549,7 @@ function openRouteModal(item = null) {
   document.getElementById('routeTitle').value = item ? item.title : '';
   document.getElementById('routeNotes').value = item ? item.notes : '';
   document.getElementById('routePhoto').value = '';
+  showPhotoError('routePhotoError', null);
   if (item && item.photo) {
     state.tempRoutePhotoBase64 = item.photo;
     document.getElementById('routePhotoImg').src = item.photo;
